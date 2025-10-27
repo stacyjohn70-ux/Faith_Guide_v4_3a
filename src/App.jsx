@@ -31,7 +31,7 @@ export default function App() {
   const tabs = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "bible", label: "Bible", icon: "📖" },
-    { id: "prayer", label: "Prayer", icon: "🙏" },
+    { id: "prayer", label: "Ask", icon: "❓" },
     { id: "settings", label: "Settings", icon: "⚙️" },
   ];
 

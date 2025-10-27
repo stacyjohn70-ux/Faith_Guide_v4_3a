@@ -1,20 +1,21 @@
-﻿{
-    "name":  "faith-guide-v4-3a",
-    "version":  "4.4.4",
-    "private":  true,
-    "type":  "module",
-    "scripts":  {
-                    "dev":  "vite",
-                    "build":  "vite build",
-                    "preview":  "vite preview",
-                    "start":  "vite"
-                },
-    "dependencies":  {
-                         "react":  "^18.3.1",
-                         "react-dom":  "^18.3.1"
-                     },
-    "devDependencies":  {
-                            "vite":  "^5.4.10",
-                            "@vitejs/plugin-react":  "^4.3.1"
-                        }
+{
+    "name": "faith-guide-v4-3a",
+    "version": "4.4.5",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "start": "vite"
+    },
+    "dependencies": {
+        "lucide-react": "^0.548.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^4.3.1",
+        "vite": "^5.4.10"
+    }
 }

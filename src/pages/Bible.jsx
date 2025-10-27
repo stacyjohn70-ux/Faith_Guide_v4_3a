@@ -1,223 +1,273 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useState, useEffect } from "react";
 
-/** ========= Translations (API.Bible IDs) ========= */
-const TRANSLATIONS = [
-  { code: "KJV",  label: "KJV",  id: "de4e12af7f28f599-02" },
-  { code: "NKJV", label: "NKJV", id: "c315fa9f71d4af3a-01" },
-  { code: "NIV",  label: "NIV",  id: "bba9f40183526463-01" },
-  { code: "ESV",  label: "ESV",  id: "65eec8e0b60e656b-01" },
-  { code: "NASB", label: "NASB", id: "06125adad2d5898a-01" }
-];
-
-/** ========= Book order (names shown to users) ========= */
-const BOOKS_OT = [
-  "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
-  "1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra",
-  "Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon",
-  "Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos",
-  "Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi"
-];
-const BOOKS_NT = [
-  "Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians",
-  "Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians",
-  "1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter",
-  "1 John","2 John","3 John","Jude","Revelation"
-];
-
-/** ========= Chapter counts (all 66) ========= */
-const CHAPTERS = {
-  Genesis:50, Exodus:40, Leviticus:27, Numbers:36, Deuteronomy:34, Joshua:24, Judges:21, Ruth:4,
-  "1 Samuel":31,"2 Samuel":24,"1 Kings":22,"2 Kings":25,"1 Chronicles":29,"2 Chronicles":36, Ezra:10, Nehemiah:13, Esther:10,
-  Job:42, Psalms:150, Proverbs:31, Ecclesiastes:12, "Song of Solomon":8, Isaiah:66, Jeremiah:52, Lamentations:5, Ezekiel:48, Daniel:12,
-  Hosea:14, Joel:3, Amos:9, Obadiah:1, Jonah:4, Micah:7, Nahum:3, Habakkuk:3, Zephaniah:3, Haggai:2, Zechariah:14, Malachi:4,
-  Matthew:28, Mark:16, Luke:24, John:21, Acts:28, Romans:16, "1 Corinthians":16, "2 Corinthians":13, Galatians:6, Ephesians:6,
-  Philippians:4, Colossians:4, "1 Thessalonians":5, "2 Thessalonians":3, "1 Timothy":6, "2 Timothy":4, Titus:3, Philemon:1, Hebrews:13,
-  James:5, "1 Peter":5, "2 Peter":3, "1 John":5, "2 John":1, "3 John":1, Jude:1, Revelation:22
-};
-
-/** ========= USFM codes for API.Bible chapter IDs =========
- * chapterId is like "JHN.3", "GEN.1" etc.
- */
-const USFM = {
-  Genesis:"GEN",Exodus:"EXO",Leviticus:"LEV",Numbers:"NUM",Deuteronomy:"DEU",
-  Joshua:"JOS",Judges:"JDG",Ruth:"RUT","1 Samuel":"1SA","2 Samuel":"2SA",
-  "1 Kings":"1KI","2 Kings":"2KI","1 Chronicles":"1CH","2 Chronicles":"2CH",
-  Ezra:"EZR",Nehemiah:"NEH",Esther:"EST",Job:"JOB",Psalms:"PSA",Proverbs:"PRO",
-  Ecclesiastes:"ECC","Song of Solomon":"SNG",Isaiah:"ISA",Jeremiah:"JER",
-  Lamentations:"LAM",Ezekiel:"EZK",Daniel:"DAN",Hosea:"HOS",Joel:"JOL",Amos:"AMO",
-  Obadiah:"OBA",Jonah:"JON",Micah:"MIC",Nahum:"NAM",Habakkuk:"HAB",Zephaniah:"ZEP",
-  Haggai:"HAG",Zechariah:"ZEC",Malachi:"MAL",
-  Matthew:"MAT",Mark:"MRK",Luke:"LUK",John:"JHN",Acts:"ACT",Romans:"ROM",
-  "1 Corinthians":"1CO","2 Corinthians":"2CO",Galatians:"GAL",Ephesians:"EPH",
-  Philippians:"PHP",Colossians:"COL","1 Thessalonians":"1TH","2 Thessalonians":"2TH",
-  "1 Timothy":"1TI","2 Timothy":"2TI",Titus:"TIT",Philemon:"PHM",Hebrews:"HEB",
-  James:"JAS","1 Peter":"1PE","2 Peter":"2PE","1 John":"1JN","2 John":"2JN","3 John":"3JN",
-  Jude:"JUD",Revelation:"REV"
-};
-
-export default function Bible({ colors }) {
-  const [translation, setTranslation] = useState(() => localStorage.getItem("fg_bible_translation") || "NKJV");
-  const [testament, setTestament] = useState("Old");
-  const [book, setBook] = useState("");
-  const [chapter, setChapter] = useState(null);
-  const [contentHtml, setContentHtml] = useState(""); // chapter HTML
+export default function Bible({
+  colors = {
+    card: "#f9fafb",
+    text: "#111827",
+    border: "#d1d5db",
+    active: "#2563eb",
+    subtle: "#6b7280",
+  },
+}) {
+  const [testament, setTestament] = useState("old");
+  const [books, setBooks] = useState([]);
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [chapters, setChapters] = useState([]);
+  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [chapterHtml, setChapterHtml] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
 
-  useEffect(()=>localStorage.setItem("fg_bible_translation", translation), [translation]);
+  const BIBLE_ID = "de4e12af7f28f599-02"; // KJV
+  const API_KEY = import.meta.env.VITE_API_BIBLE_KEY;
 
-  const books = testament === "Old" ? BOOKS_OT : BOOKS_NT;
-  const tMeta = useMemo(()=>TRANSLATIONS.find(t=>t.code===translation), [translation]);
-  const apiKey = import.meta.env.VITE_API_BIBLE_KEY;
+  const OT_IDS = [
+    "GEN","EXO","LEV","NUM","DEU","JOS","JDG","RUT","1SA","2SA","1KI","2KI","1CH","2CH",
+    "EZR","NEH","EST","JOB","PSA","PRO","ECC","SNG","ISA","JER","LAM","EZK","DAN",
+    "HOS","JOL","AMO","OBA","JON","MIC","NAM","HAB","ZEP","HAG","ZEC","MAL"
+  ];
+  const NT_IDS = [
+    "MAT","MRK","LUK","JHN","ACT","ROM","1CO","2CO","GAL","EPH","PHP","COL","1TH","2TH",
+    "1TI","2TI","TIT","PHM","HEB","JAS","1PE","2PE","1JN","2JN","3JN","JUD","REV"
+  ];
 
-  async function loadChapter(b, c) {
-    setBook(b); setChapter(c); setContentHtml(""); setErr(""); setLoading(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  useEffect(() => {
+    fetchBooks(testament);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testament]);
 
+  async function fetchBooks(which) {
+    setLoading(true);
     try {
-      // KJV via bible-api.com (plain text -> turn into simple HTML with verse numbers)
-      if (translation === "KJV") {
-        const r = await fetch(`https://bible-api.com/${encodeURIComponent(`${b} ${c}`)}?translation=kjv`);
-        if (!r.ok) throw new Error("KJV fetch failed");
-        const j = await r.json();
-        // Prefer structured verses if present; otherwise format text
-        if (Array.isArray(j.verses) && j.verses.length) {
-          const html = j.verses.map(v => {
-            const clean = (v.text || "").replace(/\s+/g," ").trim();
-            return `<div><strong style="color:${colors.active}">${v.verse}</strong> ${escapeHtml(clean)}</div>`;
-          }).join("");
-          setContentHtml(html);
-        } else {
-          const clean = (j.text || "").replace(/\s+/g," ").trim();
-          setContentHtml(`<p>${escapeHtml(clean)}</p>`);
-        }
-        return;
-      }
-
-      // Other translations via API.Bible (HTML, red-letter supported)
-      if (!apiKey || !tMeta?.id) throw new Error("That translation is coming soon.");
-      const usfm = USFM[b];
-      if (!usfm) throw new Error("That translation is coming soon.");
-      const chapterId = `${usfm}.${c}`;
       const res = await fetch(
-        `https://api.scripture.api.bible/v1/bibles/${tMeta.id}/chapters/${chapterId}?content-type=html`,
-        { headers: { "api-key": apiKey } }
+        `https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books`,
+        { headers: { "api-key": API_KEY } }
       );
-      if (res.status === 401 || res.status === 403) throw new Error("That translation is coming soon.");
       const data = await res.json();
-      let html = data?.data?.content || "";
-
-      // Red-letter: render words of Jesus (wj) in red
-      html = html.replace(/class="wj"/g, 'style="color:#c00;font-weight:500"');
-
-      // Keep it tidy: remove headings/footnotes wrappers if present
-      html = html
-        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "");
-
-      setContentHtml(html || "<p>That translation is coming soon.</p>");
+      const all = data?.data || [];
+      const filtered = which === "old"
+        ? all.filter(b => OT_IDS.includes(b.id))
+        : all.filter(b => NT_IDS.includes(b.id));
+      setBooks(filtered);
+      setSelectedBook(null);
+      setChapters([]);
+      setSelectedChapter(null);
+      setChapterHtml("");
     } catch (e) {
-      console.warn("Chapter load error:", e.message);
-      setErr("That translation is coming soon.");
+      console.error("Books fetch failed:", e);
+      setBooks([]);
     } finally {
       setLoading(false);
     }
   }
 
-  function nextChapter() {
-    if (!book || chapter == null) return;
-    const total = CHAPTERS[book] || 1;
-    if (chapter < total) loadChapter(book, chapter + 1);
-    else {
-      const all = [...BOOKS_OT, ...BOOKS_NT];
-      const i = all.indexOf(book);
-      if (i !== -1 && i < all.length - 1) loadChapter(all[i+1], 1);
+  async function fetchChapters(bookId) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books/${bookId}/chapters`,
+        { headers: { "api-key": API_KEY } }
+      );
+      const data = await res.json();
+      setChapters(data?.data || []);
+      setSelectedBook(books.find(b => b.id === bookId) || null);
+      setSelectedChapter(null);
+      setChapterHtml("");
+    } catch (e) {
+      console.error("Chapters fetch failed:", e);
+      setChapters([]);
+    } finally {
+      setLoading(false);
     }
   }
-  function prevChapter() {
-    if (!book || chapter == null) return;
-    if (chapter > 1) loadChapter(book, chapter - 1);
-    else {
-      const all = [...BOOKS_OT, ...BOOKS_NT];
-      const i = all.indexOf(book);
-      if (i > 0) {
-        const bPrev = all[i-1];
-        loadChapter(bPrev, CHAPTERS[bPrev] || 1);
-      }
+
+  // --- Helpers to format the raw text blob ---
+  function redLetter(html) {
+    if (!html) return html;
+    // Very simple heuristic for KJV-style attributions
+    return html.replace(
+      /(Jesus\s+(said|answered|spake|replied)[^"]*")([^"]+)(")/gi,
+      (_m, pre, _verb, quote, post) =>
+        `${pre}<span style="color:#b91c1c;font-weight:500">${quote}</span>${post}`
+    );
+  }
+
+  function emphasizeVerseNumbers(text) {
+    if (!text) return text;
+
+    let t = text;
+
+    // Some KJV outputs include pilcrow; treat as paragraph break
+    t = t.replace(/¶/g, "\n\n");
+
+    // Ensure bracketed markers like [9] begin on a new line
+    // e.g., "...  And God said [9] Let there be..." -> break before [9]
+    t = t.replace(/\s*\[(\d{1,3})\]\s*/g, (_m, n) => `\n[${n}] `);
+
+    // Also ensure plain numbers at starts get their own line
+    // e.g., " 9 In the beginning..." -> "\n9 In the beginning..."
+    t = t.replace(/(^|\n)\s*(\d{1,3})(?=[\s.])/g, (_m, lead, n) => `${lead}${n} `);
+
+    // Now style both forms: line-leading 12 and bracketed [12]
+    // 1) Style bracketed numbers [12]
+    t = t.replace(/\[(\d{1,3})\]/g,
+      (_m, n) => `<span style="font-weight:700;color:${colors.active}">${n}</span>`
+    );
+
+    // 2) Style numbers at the start of a line (12 or 12.)
+    t = t.replace(
+      /(^|\n)(\d{1,3})([.)]?\s)/g,
+      (_m, lead, n, sep) =>
+        `${lead}<span style="font-weight:700;color:${colors.active}">${n}</span>${sep}`
+    );
+
+    return t;
+  }
+
+  async function fetchChapterText(chapterId) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/chapters/${chapterId}?content-type=text`,
+        { headers: { "api-key": API_KEY } }
+      );
+      const data = await res.json();
+      let raw = (data?.data?.content || "").replace(/<[^>]+>/g, "").trim();
+
+      // Apply formatting passes
+      raw = emphasizeVerseNumbers(raw);
+      raw = redLetter(raw);
+
+      // Convert single newlines into <br>, double newlines into paragraph breaks
+      const html = raw
+        .split(/\n{2,}/)
+        .map(block =>
+          `<p style="margin:0 0 8px 0; line-height:1.8; white-space:pre-wrap;">${
+            block.replace(/\n/g, "<br/>")
+          }</p>`
+        )
+        .join("");
+
+      setChapterHtml(html);
+      setSelectedChapter(chapters.find(ch => ch.id === chapterId) || null);
+    } catch (e) {
+      console.error("Chapter fetch failed:", e);
+      setChapterHtml(
+        `<p style="color:#b91c1c">⚠️ Unable to load this chapter. Please try again.</p>`
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 12 }}>
-      {/* Top controls */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>{ setTestament("Old"); setBook(""); setChapter(null); setContentHtml(""); setErr(""); }}
-                  style={btn(testament==="Old", colors)}>Old Testament</button>
-          <button onClick={()=>{ setTestament("New"); setBook(""); setChapter(null); setContentHtml(""); setErr(""); }}
-                  style={btn(testament==="New", colors)}>New Testament</button>
-        </div>
-        <select value={translation} onChange={(e)=>setTranslation(e.target.value)}
-                style={{ background:"none", color:colors.text, border:`1px solid ${colors.border}`, borderRadius:8, padding:"4px 8px" }}>
-          {TRANSLATIONS.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
-        </select>
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: 16, color: colors.text }}>
+      <h2 style={{ marginBottom: 12 }}>Bible</h2>
+
+      {/* Testament Switcher */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+        <button
+          onClick={() => setTestament("old")}
+          style={{
+            flex: 1, padding: "8px 0",
+            background: testament === "old" ? colors.active : colors.card,
+            color: testament === "old" ? "#fff" : colors.text,
+            border: `1px solid ${colors.border}`, borderRadius: 8, cursor: "pointer",
+          }}
+        >
+          Old Testament
+        </button>
+        <button
+          onClick={() => setTestament("new")}
+          style={{
+            flex: 1, padding: "8px 0",
+            background: testament === "new" ? colors.active : colors.card,
+            color: testament === "new" ? "#fff" : colors.text,
+            border: `1px solid ${colors.border}`, borderRadius: 8, cursor: "pointer",
+          }}
+        >
+          New Testament
+        </button>
       </div>
 
-      {/* Book grid */}
-      {!book && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:8, marginBottom:20 }}>
-          {books.map(b => (
-            <button key={b} onClick={()=>{ setBook(b); setChapter(null); setContentHtml(""); setErr(""); }}
-                    style={card(colors)}>{b}</button>
+      {/* Books */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        {books.map(b => (
+          <button
+            key={b.id}
+            onClick={() => fetchChapters(b.id)}
+            style={{
+              backgroundColor: selectedBook?.id === b.id ? colors.active : colors.card,
+              color: selectedBook?.id === b.id ? "#fff" : colors.text,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 8,
+              padding: "6px 10px",
+              cursor: "pointer",
+            }}
+          >
+            {b.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Sticky chapter selector */}
+      {chapters.length > 0 && (
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            backgroundColor: colors.card,
+            padding: "8px 0",
+            borderBottom: `1px solid ${colors.border}`,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            marginBottom: 12,
+          }}
+        >
+          {chapters.map(ch => (
+            <button
+              key={ch.id}
+              onClick={() => fetchChapterText(ch.id)}
+              style={{
+                border: `1px solid ${colors.border}`,
+                borderRadius: 6,
+                backgroundColor: selectedChapter?.id === ch.id ? colors.active : "transparent",
+                color: selectedChapter?.id === ch.id ? "#fff" : colors.text,
+                padding: "4px 8px",
+                cursor: "pointer",
+              }}
+            >
+              {ch.number || ch.id.replace(/\D/g, "")}
+            </button>
           ))}
         </div>
       )}
 
-      {/* Chapter buttons */}
-      {book && chapter == null && (
-        <div style={{ marginBottom: 16 }}>
-          <h3 style={{ textAlign:"center" }}>{book}</h3>
-          <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"center", gap:6 }}>
-            {Array.from({ length: CHAPTERS[book] || 1 }, (_,i)=>i+1).map(c => (
-              <button key={c} onClick={()=>loadChapter(book,c)} style={chip(colors)}>{c}</button>
-            ))}
+      {/* Verses */}
+      <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 8 }}>
+        {loading && <div>Loading...</div>}
+        {!loading && chapterHtml && (
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            {selectedBook && selectedChapter && (
+              <h3 style={{ marginTop: 0, marginBottom: 12, color: colors.active }}>
+                {selectedBook.name} {selectedChapter.number}
+              </h3>
+            )}
+            <div
+              style={{ lineHeight: 1.8 }}
+              dangerouslySetInnerHTML={{ __html: chapterHtml }}
+            />
           </div>
-          <div style={{ textAlign:"center", marginTop:12 }}>
-            <button onClick={()=>{ setBook(""); setChapter(null); setContentHtml(""); setErr(""); }} style={link(colors)}>⬅ Back to Books</button>
-          </div>
-        </div>
-      )}
-
-      {/* Chapter content */}
-      {chapter != null && (
-        <div style={{ backgroundColor:colors.card, borderRadius:12, padding:16, marginTop:12 }}>
-          <h4 style={{ textAlign:"center", marginTop:0 }}>{book} {chapter} ({translation})</h4>
-          {loading && <div style={{ textAlign:"center" }}>Loading…</div>}
-          {err && <div style={{ color:"#b91c1c", textAlign:"center" }}>{err}</div>}
-          {!loading && !err && (
-            <div style={{ lineHeight:1.8, fontSize:16 }}
-                 dangerouslySetInnerHTML={{ __html: contentHtml }} />
-          )}
-          <div style={{ display:"flex", justifyContent:"space-between", marginTop:16 }}>
-            <button onClick={prevChapter} style={nav(colors)}>⬅ Prev</button>
-            <button onClick={()=>{ setChapter(null); setContentHtml(""); setErr(""); }} style={link(colors)}>Back</button>
-            <button onClick={nextChapter} style={nav(colors)}>Next ➡</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
-
-/** ========== Tiny style helpers ========== */
-function btn(active, c){ return { background: active? c.active : "transparent", color: active? "#fff": c.text,
-  border:`1px solid ${c.border}`, borderRadius:10, padding:"6px 12px", cursor:"pointer" }; }
-function card(c){ return { background:c.card, border:`1px solid ${c.border}`, borderRadius:10, padding:8,
-  cursor:"pointer", color:c.text, fontWeight:500, textAlign:"left" }; }
-function chip(c){ return { width:36, height:36, borderRadius:"50%", border:`1px solid ${c.border}`,
-  background:c.card, color:c.text, cursor:"pointer" }; }
-function link(c){ return { background:"transparent", color:c.active, border:"none", cursor:"pointer", fontSize:14 }; }
-function nav(c){ return { background:c.active, color:"#fff", border:"none", borderRadius:8, padding:"6px 14px", cursor:"pointer" }; }
-
-/** ========== Utilities ========== */
-function escapeHtml(s=""){ return s.replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
